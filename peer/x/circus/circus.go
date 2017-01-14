@@ -33,8 +33,7 @@ const (
 	freeHeadIndex = iota
 	unusedHeadIndex
 	connectingHeadIndex
-
-	leastPendingRingIndex = 0
+	ringsHeadIndex
 
 	initialPeerCapacity = 32
 )
@@ -80,10 +79,6 @@ type Circus struct {
 	// node 1 is the head of the free list for nodes for unretained peers
 	// (peers that are neither connecting or available).
 	nodes []node
-	// rings contains head nodes of all the lists of available peers, in order
-	// of descending pending request count, so rings[0] is always
-	// the ring with the fewest pending requests.
-	rings []ring
 	// locator is a map from peer id to the index of the peer's node.
 	locator map[string]int // TODO use identifier as key
 
@@ -108,6 +103,7 @@ type node struct {
 	ringIndex int
 	nextIndex int
 	prevIndex int
+	pending   int
 
 	subscriber *subscriber
 }
@@ -162,6 +158,8 @@ func New(transport peer.Transport) *Circus {
 	// This list exists so we can release peers while they attempt to connect
 	// if the goal connections state changes.
 	pl.retainNode()
+	// This creates the head of the connected rings list.
+	pl.retainNode()
 	return pl
 }
 
@@ -175,9 +173,7 @@ func newCircus() *Circus {
 		// The zero value of a node serves as the head of the free list
 		nodes: make([]node, 1, initialPeerCapacity),
 		// Initially empty locator for peers by identifier as string
-		locator: make(map[string]int),
-		// There are no rings initially
-		rings:    nil,
+		locator:  make(map[string]int),
 		change:   make(chan struct{}, 1),
 		stopping: make(chan struct{}, 0),
 	}
@@ -255,7 +251,7 @@ func (pl *Circus) Choose(ctx context.Context, _ *transport.Request) (peer.Peer, 
 			// for multiple subscribers.  We must warn the others.
 			pl.nudge()
 
-			node := pl.rotate()
+			node := pl.getLeastPendingNode()
 			pl.Unlock()
 			node.peer.StartRequest()
 			return node.peer, node.subscriber.boundFinish, nil
@@ -275,32 +271,33 @@ func (pl *Circus) Choose(ctx context.Context, _ *transport.Request) (peer.Peer, 
 }
 
 func (pl *Circus) dump() {
-	fmt.Printf("circus: unused:%d connecting:%d available:%d\n", pl.unused, pl.connecting, pl.available)
-	fmt.Printf("rings:")
-	for i, ring := range pl.rings {
-		if i != 0 {
-			fmt.Printf(",")
-		}
-		fmt.Printf(" {%d pending at %d}", ring.pending, ring.headIndex)
-	}
-	fmt.Printf("\n")
-	for i, node := range pl.nodes {
-		fmt.Printf("%d. %v", i, node)
-		if i == freeHeadIndex {
-			fmt.Printf(" (free)")
-		} else if i == unusedHeadIndex {
-			fmt.Printf(" (unused)")
-		} else if i == connectingHeadIndex {
-			fmt.Printf(" (connecting)")
-		} else {
-			for _, ring := range pl.rings {
-				if i == ring.headIndex {
-					fmt.Printf(" (%d pending)", ring.pending)
-				}
-			}
-		}
-		fmt.Printf("\n")
-	}
+	// TODO lol
+	// fmt.Printf("circus: unused:%d connecting:%d available:%d\n", pl.unused, pl.connecting, pl.available)
+	// fmt.Printf("rings:")
+	// for i, ring := range pl.rings {
+	// 	if i != 0 {
+	// 		fmt.Printf(",")
+	// 	}
+	// 	fmt.Printf(" {%d pending at %d}", ring.pending, ring.headIndex)
+	// }
+	// fmt.Printf("\n")
+	// for i, node := range pl.nodes {
+	// 	fmt.Printf("%d. %v", i, node)
+	// 	if i == freeHeadIndex {
+	// 		fmt.Printf(" (free)")
+	// 	} else if i == unusedHeadIndex {
+	// 		fmt.Printf(" (unused)")
+	// 	} else if i == connectingHeadIndex {
+	// 		fmt.Printf(" (connecting)")
+	// 	} else {
+	// 		for _, ring := range pl.rings {
+	// 			if i == ring.headIndex {
+	// 				fmt.Printf(" (%d pending)", ring.pending)
+	// 			}
+	// 		}
+	// 	}
+	// 	fmt.Printf("\n")
+	// }
 }
 
 func (pl *Circus) satisfyGoal() {
@@ -343,14 +340,44 @@ func (pl *Circus) retainPeer() error {
 	return err
 }
 
-func (pl *Circus) rotate() *node {
-	leastPendingRing := &pl.rings[leastPendingRingIndex]
-	headIndex := leastPendingRing.headIndex
+func (pl *Circus) getLeastPendingNode() *node {
+	ringsHead := &pl.nodes[ringsHeadIndex]
+	leastPendingCircusIndex := ringsHead.prevIndex
+	leastPendingCircus := &pl.nodes[leastPendingCircusIndex]
+	headIndex := leastPendingCircus.ringIndex
 	head := &pl.nodes[headIndex]
-	nextIndex := head.nextIndex
-	pl.pop(nextIndex)
-	pl.push(nextIndex, headIndex)
-	return &pl.nodes[nextIndex]
+	index := head.nextIndex
+	pl.pop(index)
+	// TODO promote the used node to the next pending ring instead of recycling
+	pl.push(index, headIndex)
+	return &pl.nodes[index]
+}
+
+// returns the index of the head node of the ring with the least pending requests.
+func (pl *Circus) getLeastPendingRingHeadIndex(pending int) int {
+	ringsHead := &pl.nodes[ringsHeadIndex]
+	if pl.empty(ringsHeadIndex) {
+		leastPendingCircusIndex := pl.retainNode()
+		pl.push(leastPendingCircusIndex, ringsHeadIndex)
+		leastPendingCircus := &pl.nodes[leastPendingCircusIndex]
+		leastPendingCircus.pending = pending
+		ringHeadIndex := pl.retainNode()
+		ringHead := &pl.nodes[ringHeadIndex]
+		leastPendingCircus.ringIndex = ringHeadIndex
+		ringHead.ringIndex = leastPendingCircusIndex
+		return ringHeadIndex
+	}
+	leastPendingCircusIndex := ringsHead.prevIndex
+	leastPendingCircus := &pl.nodes[leastPendingCircusIndex]
+	return leastPendingCircus.ringIndex
+}
+
+func (pl *Circus) getPendingRingHeadIndex(pending, nearRingHeadIndex int) int {
+	// TODO search from a starting ring head index for the head of the pending
+	// request ring with the given pending request count, or insert a head node
+	// in the right position and return its index with the expectation that
+	// ring will be populated.
+	return 0
 }
 
 func (pl *Circus) lockNotifyStatusChanged(index int) {
@@ -365,17 +392,17 @@ func (pl *Circus) notifyStatusChanged(index int) {
 
 	status := p.Status()
 
-	if pl.Monitor != nil {
-		fmt.Printf("status change %v %v %v\n", p.Identifier(), status, node)
-		fmt.Printf("before\n")
-		pl.dump()
-	}
+	// if pl.Monitor != nil {
+	// 	fmt.Printf("status change %v %v %v\n", p.Identifier(), status, node)
+	// 	fmt.Printf("before\n")
+	// 	pl.dump()
+	// }
 
 	// A peer has become available.
 	if status.ConnectionStatus == peer.Available && !node.available() {
-		if pl.Monitor != nil {
-			fmt.Printf("%v became available\n", node)
-		}
+		// 	if pl.Monitor != nil {
+		// 		fmt.Printf("%v became available\n", node)
+		// 	}
 		if node.connecting() {
 			pl.connecting--
 		} else if node.unused() {
@@ -386,16 +413,17 @@ func (pl *Circus) notifyStatusChanged(index int) {
 		// Remove the node from the connecting peer list
 		pl.pop(index)
 		// Add to the least pending ring
-		pl.pushToRing(index, 0, status.PendingRequestCount)
+		pl.push(index, pl.getLeastPendingRingHeadIndex(status.PendingRequestCount))
+		// TODO search for the correct ring for the given pending request count
 
 		// Non-blocking notification to goroutines blocked on Choose that
 		// they may resume and check for an available peer.
 		pl.nudge()
 
-		if pl.Monitor != nil {
-			fmt.Printf("after\n")
-			pl.dump()
-		}
+		// 	if pl.Monitor != nil {
+		// 		fmt.Printf("after\n")
+		// 		pl.dump()
+		// 	}
 
 		return
 	}
@@ -406,41 +434,41 @@ func (pl *Circus) notifyStatusChanged(index int) {
 	// reconnect until we release the node)
 	// TODO consider ranking peers by number of failed connection attempts,
 	// release bad peers, retain good ones
-	if status.ConnectionStatus != peer.Available && node.available() {
-		if pl.Monitor != nil {
-			fmt.Printf("%v became unavailable\n", node)
-		}
+	// if status.ConnectionStatus != peer.Available && node.available() {
+	// 	if pl.Monitor != nil {
+	// 		fmt.Printf("%v became unavailable\n", node)
+	// 	}
 
-		pl.available--
-		pl.popFromRing(index, node.ringIndex)
-		if node.unused() {
-			pl.unused++
-			pl.push(index, unusedHeadIndex)
-		} else if node.connecting() {
-			pl.connecting++
-			pl.pop(index)
-			pl.push(index, connectingHeadIndex)
-		}
+	// 	pl.available--
+	// 	pl.popFromRing(index, node.ringIndex)
+	// 	if node.unused() {
+	// 		pl.unused++
+	// 		pl.push(index, unusedHeadIndex)
+	// 	} else if node.connecting() {
+	// 		pl.connecting++
+	// 		pl.pop(index)
+	// 		pl.push(index, connectingHeadIndex)
+	// 	}
 
-	}
+	// }
 
-	// TODO handle ConnectionFailed status (release and retain a different
-	// peer)
+	// // TODO handle ConnectionFailed status (release and retain a different
+	// // peer)
 
-	// If the peer is connected and available, consider adjusting its ring for
-	// its current pending request count.
-	if node.ringIndex != -1 {
-		ring := pl.rings[node.ringIndex]
-		if status.PendingRequestCount != ring.pending {
-			if pl.Monitor != nil {
-				fmt.Printf("adjusted pending request count\n")
-			}
-			pl.adjustRing(index, node.ringIndex, status.PendingRequestCount)
-		}
-	}
+	// // If the peer is connected and available, consider adjusting its ring for
+	// // its current pending request count.
+	// if node.ringIndex != -1 {
+	// 	ring := pl.rings[node.ringIndex]
+	// 	if status.PendingRequestCount != ring.pending {
+	// 		if pl.Monitor != nil {
+	// 			fmt.Printf("adjusted pending request count\n")
+	// 		}
+	// 		pl.adjustRing(index, node.ringIndex, status.PendingRequestCount)
+	// 	}
+	// }
 
-	if pl.Monitor != nil {
-		fmt.Printf("after\n")
-		pl.dump()
-	}
+	// if pl.Monitor != nil {
+	// 	fmt.Printf("after\n")
+	// 	pl.dump()
+	// }
 }

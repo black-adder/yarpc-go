@@ -1,122 +1,116 @@
 package circus
 
-import (
-	"testing"
+// func TestRetainReleaseRetain(t *testing.T) {
+// 	pl := newCircus()
 
-	"github.com/stretchr/testify/assert"
-)
+// 	index := pl.retainNode()
+// 	assert.Equal(t, 1, index, "retaining a node should create a node")
 
-func TestRetainReleaseRetain(t *testing.T) {
-	pl := newCircus()
+// 	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should be empty initially")
+// 	assert.Equal(t, false, pl.alone(freeHeadIndex), "free list should not contain exactly one node")
+// 	pl.releaseNode(index)
+// 	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
+// 	assert.Equal(t, true, pl.alone(freeHeadIndex), "free list should contain exactly one node")
 
-	index := pl.retainNode()
-	assert.Equal(t, 1, index, "retaining a node should create a node")
+// 	index = pl.retainNode()
+// 	assert.Equal(t, 1, index, "retaining after release should reuse a node")
+// }
 
-	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should be empty initially")
-	assert.Equal(t, false, pl.alone(freeHeadIndex), "free list should not contain exactly one node")
-	pl.releaseNode(index)
-	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
-	assert.Equal(t, true, pl.alone(freeHeadIndex), "free list should contain exactly one node")
+// func TestPushPop(t *testing.T) {
+// 	pl := newCircus()
+// 	pl.retainNode() // TODO remove this artifact
 
-	index = pl.retainNode()
-	assert.Equal(t, 1, index, "retaining after release should reuse a node")
-}
+// 	headIndex := pl.retainNode()
 
-func TestPushPop(t *testing.T) {
-	pl := newCircus()
-	pl.retainNode() // TODO remove this artifact
+// 	aIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
+// 	assert.Equal(t, true, pl.empty(headIndex))
 
-	headIndex := pl.retainNode()
+// 	pl.push(aIndex, headIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2", pl.inspectNodes())
+// 	assert.Equal(t, false, pl.empty(headIndex))
+// 	assert.Equal(t, true, pl.alone(headIndex))
 
-	aIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
-	assert.Equal(t, true, pl.empty(headIndex))
+// 	bIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
 
-	pl.push(aIndex, headIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2", pl.inspectNodes())
-	assert.Equal(t, false, pl.empty(headIndex))
-	assert.Equal(t, true, pl.alone(headIndex))
+// 	pl.push(bIndex, headIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
+// 	assert.Equal(t, false, pl.alone(headIndex))
+// 	assert.Equal(t, false, pl.empty(4))
 
-	bIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
+// 	pl.pop(bIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
+// 	assert.Equal(t, true, pl.empty(4))
 
-	pl.push(bIndex, headIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
-	assert.Equal(t, false, pl.alone(headIndex))
-	assert.Equal(t, false, pl.empty(4))
+// 	pl.push(bIndex, headIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
+// }
 
-	pl.pop(bIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
-	assert.Equal(t, true, pl.empty(4))
+// func TestRetainRelease(t *testing.T) {
+// 	pl := newCircus()
+// 	pl.retainNode() // TODO remove this artifact
 
-	pl.push(bIndex, headIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
-}
+// 	headIndex := pl.retainNode()
 
-func TestRetainRelease(t *testing.T) {
-	pl := newCircus()
-	pl.retainNode() // TODO remove this artifact
+// 	aIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
+// 	pl.push(aIndex, headIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2", pl.inspectNodes())
+// 	bIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
+// 	pl.push(bIndex, headIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
+// 	pl.pop(aIndex)
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->4, 3<-3->3, 2<-4->2", pl.inspectNodes())
+// 	assert.NoError(t, pl.releaseNode(aIndex))
+// 	assert.Equal(t, "3<-0->3, 1<-1->1, 4<-2->4, 0<-3->0, 2<-4->2", pl.inspectNodes())
+// 	cIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->4, 3<-3->3, 2<-4->2", pl.inspectNodes())
+// 	assert.NoError(t, pl.releaseNode(cIndex))
+// 	assert.Equal(t, "3<-0->3, 1<-1->1, 4<-2->4, 0<-3->0, 2<-4->2", pl.inspectNodes())
+// 	pl.pop(bIndex)
+// 	assert.Equal(t, "3<-0->3, 1<-1->1, 2<-2->2, 0<-3->0, 4<-4->4", pl.inspectNodes())
+// 	assert.NoError(t, pl.releaseNode(bIndex))
+// 	assert.Equal(t, "4<-0->3, 1<-1->1, 2<-2->2, 0<-3->4, 3<-4->0", pl.inspectNodes())
+// }
 
-	headIndex := pl.retainNode()
+// func TestRetainRetainReleaseRelease(t *testing.T) {
+// 	pl := newCircus()
+// 	pl.retainNode() // TODO remove this artifact
 
-	aIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
-	pl.push(aIndex, headIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2", pl.inspectNodes())
-	bIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 3<-2->3, 2<-3->2, 4<-4->4", pl.inspectNodes())
-	pl.push(bIndex, headIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->3, 2<-3->4, 3<-4->2", pl.inspectNodes())
-	pl.pop(aIndex)
-	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->4, 3<-3->3, 2<-4->2", pl.inspectNodes())
-	assert.NoError(t, pl.releaseNode(aIndex))
-	assert.Equal(t, "3<-0->3, 1<-1->1, 4<-2->4, 0<-3->0, 2<-4->2", pl.inspectNodes())
-	cIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 4<-2->4, 3<-3->3, 2<-4->2", pl.inspectNodes())
-	assert.NoError(t, pl.releaseNode(cIndex))
-	assert.Equal(t, "3<-0->3, 1<-1->1, 4<-2->4, 0<-3->0, 2<-4->2", pl.inspectNodes())
-	pl.pop(bIndex)
-	assert.Equal(t, "3<-0->3, 1<-1->1, 2<-2->2, 0<-3->0, 4<-4->4", pl.inspectNodes())
-	assert.NoError(t, pl.releaseNode(bIndex))
-	assert.Equal(t, "4<-0->3, 1<-1->1, 2<-2->2, 0<-3->4, 3<-4->0", pl.inspectNodes())
-}
+// 	assert.Equal(t, "0<-0->0, 1<-1->1", pl.inspectNodes())
 
-func TestRetainRetainReleaseRelease(t *testing.T) {
-	pl := newCircus()
-	pl.retainNode() // TODO remove this artifact
+// 	aIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2", pl.inspectNodes())
+// 	assert.Equal(t, 2, aIndex, "retaining a node should create a node")
+// 	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should be empty initially")
 
-	assert.Equal(t, "0<-0->0, 1<-1->1", pl.inspectNodes())
+// 	bIndex := pl.retainNode()
+// 	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
+// 	assert.Equal(t, 3, bIndex, "retaining a node should create a node")
+// 	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should still be empty")
 
-	aIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2", pl.inspectNodes())
-	assert.Equal(t, 2, aIndex, "retaining a node should create a node")
-	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should be empty initially")
+// 	pl.releaseNode(bIndex)
+// 	assert.Equal(t, "3<-0->3, 1<-1->1, 2<-2->2, 0<-3->0", pl.inspectNodes())
+// 	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
+// 	assert.Equal(t, true, pl.alone(freeHeadIndex), "free list should contain exactly one node")
 
-	bIndex := pl.retainNode()
-	assert.Equal(t, "0<-0->0, 1<-1->1, 2<-2->2, 3<-3->3", pl.inspectNodes())
-	assert.Equal(t, 3, bIndex, "retaining a node should create a node")
-	assert.Equal(t, true, pl.empty(freeHeadIndex), "free list should still be empty")
+// 	pl.releaseNode(aIndex)
+// 	assert.Equal(t, "2<-0->3, 1<-1->1, 3<-2->0, 0<-3->2", pl.inspectNodes())
+// 	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
+// 	assert.Equal(t, false, pl.alone(freeHeadIndex), "free list should now contain more than just one node")
 
-	pl.releaseNode(bIndex)
-	assert.Equal(t, "3<-0->3, 1<-1->1, 2<-2->2, 0<-3->0", pl.inspectNodes())
-	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
-	assert.Equal(t, true, pl.alone(freeHeadIndex), "free list should contain exactly one node")
+// 	cIndex := pl.retainNode()
+// 	assert.Equal(t, "2<-0->2, 1<-1->1, 0<-2->0, 3<-3->3", pl.inspectNodes())
+// 	assert.Equal(t, 3, cIndex, "retaining after release should reuse a node")
+// }
 
-	pl.releaseNode(aIndex)
-	assert.Equal(t, "2<-0->3, 1<-1->1, 3<-2->0, 0<-3->2", pl.inspectNodes())
-	assert.Equal(t, false, pl.empty(freeHeadIndex), "free list should not be empty after release")
-	assert.Equal(t, false, pl.alone(freeHeadIndex), "free list should now contain more than just one node")
+// // This test effectively verifies that the default goal is the maximum integer.
+// func TestDefaultGoal(t *testing.T) {
+// 	pl := newCircus()
 
-	cIndex := pl.retainNode()
-	assert.Equal(t, "2<-0->2, 1<-1->1, 0<-2->0, 3<-3->3", pl.inspectNodes())
-	assert.Equal(t, 3, cIndex, "retaining after release should reuse a node")
-}
-
-// This test effectively verifies that the default goal is the maximum integer.
-func TestDefaultGoal(t *testing.T) {
-	pl := newCircus()
-
-	assert.Equal(t, true, pl.goal > 0)
-	// Verify overflow
-	assert.Equal(t, true, pl.goal+1 < 0)
-}
+// 	assert.Equal(t, true, pl.goal > 0)
+// 	// Verify overflow
+// 	assert.Equal(t, true, pl.goal+1 < 0)
+// }

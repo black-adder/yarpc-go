@@ -15,18 +15,18 @@ func (pl *Circus) inspectNodes() string {
 
 func (pl *Circus) inspectRings() string {
 	res := "["
-	for index, ring := range pl.rings {
-		if index != 0 {
-			res += ", "
-		}
-		length := ""
-		if pl.alone(ring.headIndex) {
-			length = " (0)"
-		} else if pl.empty(ring.headIndex) {
-			length = " (1)"
-		}
-		res += fmt.Sprintf("%d%s", ring.pending, length)
-	}
+	// for index, ring := range pl.rings {
+	// 	if index != 0 {
+	// 		res += ", "
+	// 	}
+	// 	length := ""
+	// 	if pl.alone(ring.headIndex) {
+	// 		length = " (0)"
+	// 	} else if pl.empty(ring.headIndex) {
+	// 		length = " (1)"
+	// 	}
+	// 	res += fmt.Sprintf("%d%s", ring.pending, length)
+	// }
 	res += "]"
 	return res
 }

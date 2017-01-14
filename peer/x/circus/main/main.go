@@ -28,7 +28,7 @@ import (
 
 	"go.uber.org/yarpc/api/peer"
 	"go.uber.org/yarpc/api/peer/peertest"
-	"go.uber.org/yarpc/peer/x/peerheap"
+	"go.uber.org/yarpc/peer/x/roundrobin"
 	"go.uber.org/yarpc/transport/http"
 )
 
@@ -49,8 +49,8 @@ func (m *Monitor) Update() {
 func main() {
 	x := http.NewTransport()
 
-	pl := peerheap.New(x)
-	// pl := roundrobin.New(x)
+	// pl := peerheap.New(x)
+	pl := roundrobin.New(x)
 	// pl := circus.New(x)
 	// pl.Monitor = &Monitor{}
 
@@ -61,7 +61,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	peertest.GenerateLoad(ctx, pl)
+	// peertest.GenerateLoad(ctx, pl)
 	peertest.GenerateChaos(ctx, pl)
 
 	time.Sleep(10 * time.Millisecond)
