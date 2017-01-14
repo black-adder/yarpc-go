@@ -124,6 +124,16 @@ func (n node) unused() bool {
 	return n.peer == nil && n.ringIndex == -1
 }
 
+func (n node) connectionStatus() peer.ConnectionStatus {
+	if n.peer == nil {
+		return peer.Available
+	} else if n.ringIndex == -1 {
+		return peer.Connecting
+	} else {
+		return peer.Unavailable
+	}
+}
+
 func (n node) String() string {
 	r := ""
 	if n.peer != nil {
@@ -354,14 +364,18 @@ func (pl *Circus) notifyStatusChanged(index int) {
 	p := node.peer
 
 	status := p.Status()
-	fmt.Printf("status change %v %v %v\n", p.Identifier(), status, node)
 
-	fmt.Printf("before\n")
-	pl.dump()
+	if pl.Monitor != nil {
+		fmt.Printf("status change %v %v %v\n", p.Identifier(), status, node)
+		fmt.Printf("before\n")
+		pl.dump()
+	}
 
 	// A peer has become available.
-	if status.ConnectionStatus != peer.Available && node.available() {
-		fmt.Printf("%v became available\n", node)
+	if status.ConnectionStatus == peer.Available && !node.available() {
+		if pl.Monitor != nil {
+			fmt.Printf("%v became available\n", node)
+		}
 		if node.connecting() {
 			pl.connecting--
 		} else if node.unused() {
@@ -377,8 +391,12 @@ func (pl *Circus) notifyStatusChanged(index int) {
 		// Non-blocking notification to goroutines blocked on Choose that
 		// they may resume and check for an available peer.
 		pl.nudge()
-		fmt.Printf("after\n")
-		pl.dump()
+
+		if pl.Monitor != nil {
+			fmt.Printf("after\n")
+			pl.dump()
+		}
+
 		return
 	}
 
@@ -388,18 +406,22 @@ func (pl *Circus) notifyStatusChanged(index int) {
 	// reconnect until we release the node)
 	// TODO consider ranking peers by number of failed connection attempts,
 	// release bad peers, retain good ones
-	if status.ConnectionStatus == peer.Available && !node.available() {
-		fmt.Printf("%v became unavailable\n", node)
+	if status.ConnectionStatus != peer.Available && node.available() {
+		if pl.Monitor != nil {
+			fmt.Printf("%v became unavailable\n", node)
+		}
+
+		pl.available--
+		pl.popFromRing(index, node.ringIndex)
 		if node.unused() {
 			pl.unused++
+			pl.push(index, unusedHeadIndex)
 		} else if node.connecting() {
 			pl.connecting++
+			pl.pop(index)
+			pl.push(index, connectingHeadIndex)
 		}
-		pl.available--
 
-		pl.popFromRing(index, node.ringIndex)
-		pl.push(index, connectingHeadIndex)
-		node.ringIndex = -1
 	}
 
 	// TODO handle ConnectionFailed status (release and retain a different
@@ -410,10 +432,15 @@ func (pl *Circus) notifyStatusChanged(index int) {
 	if node.ringIndex != -1 {
 		ring := pl.rings[node.ringIndex]
 		if status.PendingRequestCount != ring.pending {
+			if pl.Monitor != nil {
+				fmt.Printf("adjusted pending request count\n")
+			}
 			pl.adjustRing(index, node.ringIndex, status.PendingRequestCount)
 		}
 	}
 
-	fmt.Printf("after\n")
-	pl.dump()
+	if pl.Monitor != nil {
+		fmt.Printf("after\n")
+		pl.dump()
+	}
 }

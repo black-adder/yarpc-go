@@ -27,10 +27,8 @@ import (
 	"time"
 
 	"go.uber.org/yarpc/api/peer"
-	"go.uber.org/yarpc/api/transport"
-	"go.uber.org/yarpc/peer/hostport"
-	"go.uber.org/yarpc/peer/x/circus"
-	"go.uber.org/yarpc/peer/x/roundrobin"
+	"go.uber.org/yarpc/api/peer/peertest"
+	"go.uber.org/yarpc/peer/x/peerheap"
 	"go.uber.org/yarpc/transport/http"
 )
 
@@ -51,35 +49,32 @@ func (m *Monitor) Update() {
 func main() {
 	x := http.NewTransport()
 
-	var pl peer.List
-	var pc peer.Chooser
-	var lc transport.Lifecycle
-
-	if false {
-		rr := roundrobin.New(x)
-		pl = rr
-		pc = rr
-		lc = rr
-	} else {
-		c := circus.New(x)
-		c.Monitor = &Monitor{}
-		pl = c
-		pc = c
-		lc = c
-	}
-
+	pl := peerheap.New(x)
+	// pl := roundrobin.New(x)
+	// pl := circus.New(x)
 	// pl.Monitor = &Monitor{}
-	pl.Update(peer.ListUpdates{
-		Additions: []peer.Identifier{hostport.PeerIdentifier("127.0.0.1:80")},
-	})
-	lc.Start()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	pl.Start()
+	defer pl.Stop()
+
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	peer, finish, err := pc.Choose(ctx, nil)
-	if err != nil {
-		log.Fatalln(err)
+
+	peertest.GenerateLoad(ctx, pl)
+	peertest.GenerateChaos(ctx, pl)
+
+	time.Sleep(10 * time.Millisecond)
+
+	for n := 0; n < 30; n++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		peer, finish, err := pl.Choose(ctx, nil)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		fmt.Println(peer.Identifier())
+		finish(nil)
+		time.Sleep(500 * time.Nanosecond)
 	}
-	fmt.Println(peer.Identifier())
-	finish(nil)
 }

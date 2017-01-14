@@ -20,8 +20,6 @@
 
 package circus
 
-import "fmt"
-
 func (pl *Circus) adjustRing(index, ringIndex, pending int) error {
 	// Assertion: the pending request count for the current ring is not the
 	// same as this ring.
@@ -184,10 +182,12 @@ func (pl *Circus) pushToRing(index, ringIndex, pending int) error {
 }
 
 func (pl *Circus) popFromRing(index, ringIndex int) error {
-	fmt.Printf("pop %d from %d\n", index, ringIndex)
 	node := &pl.nodes[index]
-	node.ringIndex = -1
 	pl.pop(index)
+	if node.ringIndex == -1 {
+		return nil
+	}
+	node.ringIndex = -1
 	ring := pl.rings[ringIndex]
 	// If the ring has become empty as a consequence of removing the final node,
 	if pl.empty(ring.headIndex) {
